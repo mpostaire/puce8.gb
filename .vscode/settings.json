@@ -1,0 +1,11 @@
+{
+    "rgbdsz80.includePath": [
+        "./"
+    ],
+    "rgbdsz80.formatting.capitalization": {
+        "language": "lower",
+        "language.keyword.preprocessor": "upper",
+        "language.keyword.sectiondeclaration": "upper",
+        "language.hex": "upper"
+    }
+}
