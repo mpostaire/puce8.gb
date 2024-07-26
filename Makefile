@@ -18,10 +18,10 @@ all: $(ODIR_STRUCTURE) $(BIN)
 
 $(BIN): $(OBJ)
 	rgblink -o $@ -n $(ODIR)/$(BIN).sym $^
-	rgbfix -v -p 0xFF $@
+	rgbfix -vp 0xFF $@ -t "puce8.gb"
 
 $(ODIR)/%.o: $(SDIR)/%.s
-	rgbasm -o $@ $^
+	rgbasm -Weverything -o $@ $^
 
 $(ODIR_STRUCTURE):
 	mkdir -p $@
