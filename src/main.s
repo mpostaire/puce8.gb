@@ -13,6 +13,11 @@ wCurKeys:: db
 wNewKeys:: db
 
 
+SECTION "VBLANK interrupt", ROM0[INT_HANDLER_VBLANK]
+
+    ret
+
+
 SECTION "Chip8 RAM", WRAMX
 
 wEmuRam:: ds 4096
@@ -60,11 +65,17 @@ EmuReset:
 .cpuLoop:
     ; fetch
     ld a, [hli]
-    ld c, a
-    ld a, [hli]
     ld b, a
+    ld a, [hli]
+    ld c, a
 
     ; TODO decode
+    ld a, $F0
+    and b
+
+    ; TODO jump table opcode in register b
+    ; Or maybe there's a faster way to decode chip8 instrs
+
     ; TODO execute
 
     jr .cpuLoop
@@ -78,11 +89,22 @@ EmuReset:
 .done:
     jr @ ; traps execution here
 
-; Wait for VBLANK
+; Halts until VBLANK, if already in VBLANK this returns immediately.
+; This expects that VBLANK int does not changes the hl register
 WaitVBLANK:
     ld a, [rLY]
     cp SCRN_Y
-    jp c, WaitVBLANK ; jp if a < SCRN_Y (144)
+    jr nc, .returnNow
+
+    ld hl, rIE
+    set IEB_VBLANK, [hl]
+
+    halt
+
+    ; ld hl, rIE not needed because VBLANK int does nothing
+    set IEB_VBLANK, [hl]
+    reti
+.returnNow:
     ret
 
 ; Wait for VBLANK then disable LCD
