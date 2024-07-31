@@ -2,8 +2,38 @@ INCLUDE "inc/hardware.inc"
 
 SECTION "Chip8 ROMs", ROMX
 
-Chip8Logo::
+TestChip8Logo::
     INCBIN "inc/roms/1-chip8-logo.ch8"
+TestChip8LogoEnd::
+
+TestIBMLogo::
+    INCBIN "inc/roms/2-ibm-logo.ch8"
+TestIBMLogoEnd::
+
+TestCorax::
+    INCBIN "inc/roms/3-corax+.ch8"
+TestCoraxEnd::
+
+TestFlags::
+    INCBIN "inc/roms/4-flags.ch8"
+TestFlagsEnd::
+
+TestQuirks::
+    INCBIN "inc/roms/5-quirks.ch8"
+TestQuirksEnd::
+
+TestKeypad::
+    INCBIN "inc/roms/6-keypad.ch8"
+TestKeypadEnd::
+
+TestBeep::
+    INCBIN "inc/roms/7-beep.ch8"
+TestBeepEnd::
+
+TestScrolling::
+    INCBIN "inc/roms/8-scrolling.ch8"
+TestScrollingEnd::
+
 
 SECTION "Tiles", ROMX
 

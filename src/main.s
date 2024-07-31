@@ -7,19 +7,22 @@ SECTION "Header", ROM0[$100]
     ds $150 - @, 0 ; Make room for the header
 
 
-SECTION "Input Variables", WRAM0
+SECTION "Variables", WRAM0
 
-wCurKeys::
-    db
-wNewKeys::
-    db
+wCurKeys:: db
+wNewKeys:: db
+
+
+SECTION "Chip8 RAM", WRAMX
+
+wEmuRam:: ds 4096
 
 
 SECTION "EntryPoint", ROM0
 
 EntryPoint:
-    ; Disable audio
-    ld a, 0
+    ; disable audio
+    xor a
     ld [rNR52], a
 
     call DisableLCD
@@ -27,17 +30,50 @@ EntryPoint:
     call LoadTiles
     call LoadTileMap
 
-    ; Enable LCD
-    ld a, LCDCF_ON | LCDCF_BG8000 | LCDCF_BGON
-    ld [rLCDC], a
-
-.emu_init:
-    ld a, 0
+    ; init input variables
+    xor a
     ld [wCurKeys], a
     ld [wNewKeys], a
 
-.emu_loop:
-    jr .emu_loop
+    ; enable LCD
+    ld a, LCDCF_ON | LCDCF_BG8000 | LCDCF_BGON
+    ld [rLCDC], a
+
+EmuReset:
+    ; ; TODO load font into wram
+    ; ld hl, wEmuRam + $0050
+    ; ld bc, Font
+    ; ld de, FontEnd - Font
+    ; call Memcpy
+
+    ld hl, wEmuRam + $0200
+    ld bc, TestChip8Logo
+    ld de, TestChip8LogoEnd - TestChip8Logo
+    call Memcpy
+
+    ; set chip8 pc in hl register
+    ld hl, wEmuRam + $0200
+
+.emuLoop:
+    ; ld a, cycles_to_wait
+
+.cpuLoop:
+    ; fetch
+    ld a, [hli]
+    ld c, a
+    ld a, [hli]
+    ld b, a
+
+    ; TODO decode
+    ; TODO execute
+
+    jr .cpuLoop
+    ; jr nz, .cpuLoop
+
+    call WaitVBLANK
+    call UpdateKeys
+
+    jr .emuLoop
 
 .done:
     jr @ ; traps execution here
@@ -61,14 +97,16 @@ LoadTiles:
     ld hl, _VRAM
     ld bc, Tiles
     ld de, TilesEnd - Tiles
-    jr Memcpy
+    call Memcpy
+    ret
 
 ; Loads tilemap into VRAM
 LoadTileMap:
     ld hl, _SCRN0
     ld bc, TileMap
     ld de, TileMapEnd - TileMap
-    jr Memcpy
+    call Memcpy
+    ret
 
 ; Copy bytes from src to dest
 ; hl: dest addr
@@ -82,4 +120,17 @@ Memcpy:
     ld a, d
     or a, e
     jr nz, Memcpy ; while de != 0
+    ret
+
+; Sets bytes of dest
+; hl: dest addr
+; b: value
+; de: size
+Memset:
+    ld a, b
+    ld [hli], a
+    dec de
+    ld a, d
+    or a, e
+    jr nz, Memset ; while de != 0
     ret
