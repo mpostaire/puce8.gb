@@ -40,6 +40,3 @@ EntryPoint:
     ld [rLCDC], a
 
     jp EmuReset
-
-.done:
-    jr @ ; traps execution here
