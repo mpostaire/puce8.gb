@@ -4,35 +4,35 @@ SECTION "Chip8 ROMs", ROMX
 
 TestChip8Logo::
     INCBIN "inc/roms/1-chip8-logo.ch8"
-TestChip8LogoEnd::
+.end::
 
 TestIBMLogo::
     INCBIN "inc/roms/2-ibm-logo.ch8"
-TestIBMLogoEnd::
+.end::
 
 TestCorax::
     INCBIN "inc/roms/3-corax+.ch8"
-TestCoraxEnd::
+.end::
 
 TestFlags::
     INCBIN "inc/roms/4-flags.ch8"
-TestFlagsEnd::
+.end::
 
 TestQuirks::
     INCBIN "inc/roms/5-quirks.ch8"
-TestQuirksEnd::
+.end::
 
 TestKeypad::
     INCBIN "inc/roms/6-keypad.ch8"
-TestKeypadEnd::
+.end::
 
 TestBeep::
     INCBIN "inc/roms/7-beep.ch8"
-TestBeepEnd::
+.end::
 
 TestScrolling::
     INCBIN "inc/roms/8-scrolling.ch8"
-TestScrollingEnd::
+.end::
 
 
 SECTION "Chip8 font", ROMX
@@ -54,7 +54,7 @@ Chip8Font::
     db $E0, $90, $90, $90, $E0 ; D
     db $F0, $80, $F0, $80, $F0 ; E
     db $F0, $80, $F0, $80, $80 ; F
-Chip8FontEnd::
+.end::
 
 
 SECTION "Tiles", ROMX
@@ -81,7 +81,7 @@ Tiles::
     dw `11111111, `11111111, `11000001, `10111111, `10111111, `10111111, `10111111, `11000001 ; c
     dw `11111111, `11111111, `11000011, `10111101, `10111101, `10000011, `10111111, `11000001 ; e
     dw `11000011, `10111101, `10111101, `11000011, `10111101, `10111101, `10111101, `11000011 ; 8
-TilesEnd::
+.end::
 
 SECTION "TileMap", ROMX
 
@@ -104,4 +104,4 @@ TileMap::
     db 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
     db 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
     db 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-TileMapEnd::
+.end::

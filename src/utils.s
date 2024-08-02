@@ -31,7 +31,7 @@ DisableLCD::
 LoadTiles::
     ld hl, _VRAM
     ld bc, Tiles
-    ld de, TilesEnd - Tiles
+    ld de, Tiles.end - Tiles
     call Memcpy
     ret
 
@@ -39,6 +39,6 @@ LoadTiles::
 LoadTileMap::
     ld hl, _SCRN0
     ld bc, TileMap
-    ld de, TileMapEnd - TileMap
+    ld de, TileMap.end - TileMap
     call Memcpy
     ret

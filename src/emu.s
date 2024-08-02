@@ -5,19 +5,25 @@ SECTION "Emu RAM", WRAMX
 wEmuRam: ds 4096
 
 
+SECTION "Emu vars", WRAMX
+
+wEmuRegs: ds 16
+wEmuI: dw
+
+
 SECTION "Emu", ROM0
 
 EmuReset::
     ; load font into emu ram
     ld hl, wEmuRam + $0050
     ld bc, Chip8Font
-    ld de, Chip8FontEnd - Chip8Font
+    ld de, Chip8Font.end - Chip8Font
     call Memcpy
 
     ; load chip 8 rom into emu ram
     ld hl, wEmuRam + $0200
     ld bc, TestChip8Logo
-    ld de, TestChip8LogoEnd - TestChip8Logo
+    ld de, TestChip8Logo.end - TestChip8Logo
     call Memcpy
 
     ; set chip8 pc in hl register
@@ -39,21 +45,22 @@ CPULoop:
     push hl ; save chip8 pc
 
     ; decode
-    ld a, $F0
+    ld a, $F0 ; a still contains MSB of just read instruction (which is in c)
     and b
     swap a
-    ld b, 0
-    ld c, a
+    ld d, 0
+    ld e, a
     ld hl, OpcodeJT
-    add hl, bc
+    add hl, de
+    add hl, de
 
     ; load function pointer of opcode into hl
     ld a, [hli]
-    ld c, a
+    ld e, a
     ld a, [hli]
-    ld b, a
-    ld h, b
-    ld l, c
+    ld d, a
+    ld h, d
+    ld l, e
 
     ; jump to function of opcode
     jp hl
@@ -64,83 +71,138 @@ CPULoop:
     jr EmuLoop
 
 OpcodeJT:
-    dw .zero
-    dw .one
-    dw .two
-    dw .three
-    dw .four
-    dw .five
-    dw .six
-    dw .seven
-    dw .eight
-    dw .nine
-    dw .a
-    dw .b
-    dw .c
-    dw .d
-    dw .e
-    dw .f
+    dw Op0
+    dw Op1
+    dw Op2
+    dw Op3
+    dw Op4
+    dw Op5
+    dw Op6
+    dw Op7
+    dw Op8
+    dw Op9
+    dw OpA
+    dw OpB
+    dw OpC
+    dw OpD
+    dw OpE
+    dw OpF
 
-.zero:
-    ld b, b
+; instr opcode is in register bc
+
+Op0:
+    ld a, c
+    cp $E0
+    jr nz, .callSubroutineReturn
+    call ClearScreen
+    jp CPULoop
+.callSubroutineReturn:
+    cp $EE
+    call z, SubroutineReturn
     jp CPULoop
 
-.one:
-    ld b, b
+; Jump
+Op1:
+    ; nnn in bc
+    ld a, b
+    and $0F
+    ld b, a
+
+    ; chip8 pc = nnn
+    pop hl
+    ld hl, wEmuRam
+    add hl, de
+    push hl
+
     jp CPULoop
 
-.two:
-    ld b, b
+Op2:
+    ld b, b ; TODO
     jp CPULoop
 
-.three:
-    ld b, b
+Op3:
+    ld b, b ; TODO
     jp CPULoop
 
-.four:
-    ld b, b
+Op4:
+    ld b, b ; TODO
     jp CPULoop
 
-.five:
-    ld b, b
+Op5:
+    ld b, b ; TODO
     jp CPULoop
 
-.six:
-    ld b, b
+; Load normal register with immediate value
+Op6:
+    ; x in de
+    ld a, b
+    and $0F
+    ld d, 0
+    ld e, a
+
+    ; nn is already in c
+
+    ; wEmuRegs[x] = nn
+    ld hl, wEmuRegs
+    add hl, de
+    ld [hl], c
+
     jp CPULoop
 
-.seven:
-    ld b, b
+Op7:
+    ld b, b ; TODO
     jp CPULoop
 
-.eight:
-    ld b, b
+Op8:
+    ld b, b ; TODO
     jp CPULoop
 
-.nine:
-    ld b, b
+Op9:
+    ld b, b ; TODO
     jp CPULoop
 
-.a:
-    ld b, b
+; Load index register with immediate value
+OpA:
+    ; nnn in de
+    ld a, b
+    and $0F
+    ld d, a
+    ld e, c
+
+    ; I = nnn
+    ld hl, wEmuI
+    ld a, d
+    ld [hli], a
+    ld [hl], e
+
     jp CPULoop
 
-.b:
-    ld b, b
+OpB:
+    ld b, b ; TODO
     jp CPULoop
 
-.c:
-    ld b, b
+OpC:
+    ld b, b ; TODO
     jp CPULoop
 
-.d:
-    ld b, b
+; Draw sprite to screen
+OpD:
+    ld b, b ; TODO
     jp CPULoop
 
-.e:
-    ld b, b
+OpE:
+    ld b, b ; TODO
     jp CPULoop
 
-.f:
-    ld b, b
+OpF:
+    ld b, b ; TODO
     jp CPULoop
+
+; Clear the screen
+ClearScreen:
+    ; TODO call memset 0 on vram addresses where tilemap corresponds to chip8 screen
+    ret
+
+SubroutineReturn:
+    ld hl, sp+1
+    ret
