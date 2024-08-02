@@ -1,19 +1,36 @@
 INCLUDE "inc/hardware.inc"
 
+DEF TILEMAP_WIDTH EQU 32
+DEF EMU_TILEMAP_OFFSET_Y EQU 5
+DEF EMU_TILEMAP_OFFSET_X EQU 2
+DEF EMU_TILEMAP_START EQU TILEMAP_WIDTH * EMU_TILEMAP_OFFSET_Y + EMU_TILEMAP_OFFSET_X
+DEF EMU_TILEMAP_HEIGHT EQU 8
+DEF EMU_TILEMAP_WIDTH EQU 16
+DEF EMU_TILEMAP_STRIDE EQU 32
+
+DEF EMU_RAM_SIZE EQU 4096
+DEF EMU_REGS_SIZE EQU 16
+
 SECTION "Emu RAM", WRAMX
 
-wEmuRam: ds 4096
+wEmuRam: ds EMU_RAM_SIZE
 
 
-SECTION "Emu vars", WRAMX
+SECTION "Emu vars", WRAM0
 
-wEmuRegs: ds 16
+wEmuRegs: ds EMU_REGS_SIZE
 wEmuI: dw
 
 
 SECTION "Emu", ROM0
 
 EmuReset::
+    ; init emu ram
+    ld hl, wEmuRam
+    ld b, 0
+    ld de, EMU_RAM_SIZE
+    call Memset
+
     ; load font into emu ram
     ld hl, wEmuRam + $0050
     ld bc, Chip8Font
@@ -37,6 +54,7 @@ CPULoop:
     ; fetch
     pop hl ; restore chip8 pc into hl
 
+    ; TODO prevent chip8 pc (hl) to go before and after WRAMX
     ld a, [hli]
     ld b, a
     ld a, [hli]
@@ -50,7 +68,7 @@ CPULoop:
     swap a
     ld d, 0
     ld e, a
-    ld hl, OpcodeJT
+    ld hl, OpJT
     add hl, de
     add hl, de
 
@@ -62,7 +80,7 @@ CPULoop:
     ld h, d
     ld l, e
 
-    ; jump to function of opcode
+    ; execute (jump to function of opcode)
     jp hl
 
     call WaitVBLANK
@@ -70,9 +88,9 @@ CPULoop:
 
     jr EmuLoop
 
-OpcodeJT:
-    dw Op0
-    dw Op1
+OpJT:
+    dw OpClearScreenOrOpSubroutineReturn
+    dw OpJump
     dw Op2
     dw Op3
     dw Op4
@@ -81,28 +99,28 @@ OpcodeJT:
     dw Op7
     dw Op8
     dw Op9
-    dw OpA
+    dw OpLoadIndexRegImmediate
     dw OpB
     dw OpC
-    dw OpD
+    dw OpDrawSprite
     dw OpE
     dw OpF
 
 ; instr opcode is in register bc
 
-Op0:
+OpClearScreenOrOpSubroutineReturn:
     ld a, c
     cp $E0
-    jr nz, .callSubroutineReturn
-    call ClearScreen
+    jr nz, .callOpSubroutineReturn
+    call OpClearScreen
     jp CPULoop
-.callSubroutineReturn:
+.callOpSubroutineReturn:
     cp $EE
-    call z, SubroutineReturn
+    call z, OpSubroutineReturn
     jp CPULoop
 
 ; Jump
-Op1:
+OpJump:
     ; nnn in bc
     ld a, b
     and $0F
@@ -162,7 +180,7 @@ Op9:
     jp CPULoop
 
 ; Load index register with immediate value
-OpA:
+OpLoadIndexRegImmediate:
     ; nnn in de
     ld a, b
     and $0F
@@ -186,7 +204,7 @@ OpC:
     jp CPULoop
 
 ; Draw sprite to screen
-OpD:
+OpDrawSprite:
     ld b, b ; TODO
     jp CPULoop
 
@@ -199,10 +217,24 @@ OpF:
     jp CPULoop
 
 ; Clear the screen
-ClearScreen:
-    ; TODO call memset 0 on vram addresses where tilemap corresponds to chip8 screen
+OpClearScreen:
+    ld c, EMU_TILEMAP_HEIGHT
+
+    ld hl, _SCRN0 + EMU_TILEMAP_START
+.loop
+    ld b, 0 ; 0 is full black tile
+    ld de, EMU_TILEMAP_WIDTH
+    call Memset
+
+    ld de, EMU_TILEMAP_STRIDE - EMU_TILEMAP_WIDTH
+    add hl, de
+
+    dec c
+    cp c
+    jr nz, .loop
+
     ret
 
-SubroutineReturn:
+OpSubroutineReturn:
     ld hl, sp+1
     ret

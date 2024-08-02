@@ -2,7 +2,6 @@ INCLUDE "inc/hardware.inc"
 
 SECTION "Header", ROM0[$100]
 
-    di
     jp EntryPoint
     ds $150 - @, 0 ; Make room for the header
 
@@ -24,6 +23,8 @@ EntryPoint:
     ; disable audio
     xor a
     ld [rNR52], a
+
+    ei ; WaitVBLANK needs interrupts enabled
 
     call DisableLCD
 

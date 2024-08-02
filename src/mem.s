@@ -1,6 +1,6 @@
 SECTION "Mem", ROM0
 
-; Copy bytes from src to dest
+; Copy bytes from src to dest (after this, hl == hl + de)
 ; hl: dest addr
 ; bc: src addr
 ; de: size
@@ -14,7 +14,7 @@ Memcpy::
     jr nz, Memcpy ; while de != 0
     ret
 
-; Sets bytes of dest
+; Sets bytes of dest (after this, hl == hl + de)
 ; hl: dest addr
 ; b: value
 ; de: size
