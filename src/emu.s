@@ -8,18 +8,27 @@ DEF EMU_TILEMAP_HEIGHT EQU 8
 DEF EMU_TILEMAP_WIDTH EQU 16
 DEF EMU_TILEMAP_STRIDE EQU 32
 
-DEF EMU_RAM_SIZE EQU 4096
+DEF EMU_INSTRS_PER_FRAME EQU 11
+
 DEF EMU_REGS_SIZE EQU 16
-
-SECTION "Emu RAM", WRAMX
-
-wEmuRam: ds EMU_RAM_SIZE
+DEF EMU_RAM_SIZE EQU 4096
+DEF EMU_VRAM_SIZE EQU 2048
 
 
 SECTION "Emu vars", WRAM0
 
-wEmuRegs: ds EMU_REGS_SIZE
-wEmuI: dw
+wEmuVRegs: ds EMU_REGS_SIZE
+wEmuIReg: dw
+
+
+SECTION "Emu VRAM", WRAM0
+
+wEmuVram: ds EMU_VRAM_SIZE
+
+
+SECTION "Emu RAM", WRAMX
+
+wEmuRam: ds EMU_RAM_SIZE
 
 
 SECTION "Emu", ROM0
@@ -46,11 +55,43 @@ EmuReset::
     ; set chip8 pc in hl register
     ld hl, wEmuRam + $0200
     push hl
+    jp EmuLoop
+
+GetInputAndRenderFrame:
+    call WaitVBLANK
+    call UpdateKeys
+
+
+;     ; copy emu vram into tilemap vram
+;     ; ld hl, _SCRN0
+;     ; ld bc, wEmuVram
+;     ; ld de, EMU_VRAM_SIZE
+;     ; call Memcpy
+;     ld c, EMU_TILEMAP_HEIGHT
+
+;     ld hl, _SCRN0 + EMU_TILEMAP_START
+; .loop
+;     ld bc, wEmuVram
+;     ld de, EMU_TILEMAP_WIDTH
+;     call Memcpy
+
+;     ld de, EMU_TILEMAP_STRIDE - EMU_TILEMAP_WIDTH
+;     add hl, de
+
+;     dec c
+;     cp c
+;     jr nz, .loop
 
 EmuLoop:
-    ; ld a, cycles_to_wait
+    ld d, EMU_INSTRS_PER_FRAME
+    push de ; save loop counter in stack
+    ; TODO maybe storing loop counter in stack is not a good idea, the stack should be reserved for calls and chip8 pc
 
-CPULoop:
+EmuStep:
+    pop de ; restore loop counter into d
+    dec d
+    jp z, GetInputAndRenderFrame
+
     ; fetch
     pop hl ; restore chip8 pc into hl
 
@@ -60,7 +101,8 @@ CPULoop:
     ld a, [hli]
     ld c, a
 
-    push hl ; save chip8 pc
+    push hl ; save chip8 pc in stack
+    push de ; save loop counter in stack
 
     ; decode
     ld a, $F0 ; a still contains MSB of just read instruction (which is in c)
@@ -83,11 +125,6 @@ CPULoop:
     ; execute (jump to function of opcode)
     jp hl
 
-    call WaitVBLANK
-    call UpdateKeys
-
-    jr EmuLoop
-
 OpJT:
     dw OpClearScreenOrOpSubroutineReturn
     dw OpJump
@@ -95,7 +132,7 @@ OpJT:
     dw Op3
     dw Op4
     dw Op5
-    dw Op6
+    dw LoadVRegImmediate
     dw Op7
     dw Op8
     dw Op9
@@ -106,18 +143,17 @@ OpJT:
     dw OpE
     dw OpF
 
+OpInvalid:
+    jp EmuStep
 ; instr opcode is in register bc
 
 OpClearScreenOrOpSubroutineReturn:
     ld a, c
     cp $E0
-    jr nz, .callOpSubroutineReturn
-    call OpClearScreen
-    jp CPULoop
-.callOpSubroutineReturn:
+    jp z, OpClearScreen
     cp $EE
-    call z, OpSubroutineReturn
-    jp CPULoop
+    jp z, OpSubroutineReturn
+    jp OpInvalid
 
 ; Jump
 OpJump:
@@ -126,32 +162,36 @@ OpJump:
     and $0F
     ld b, a
 
+    pop de ; pop emu loop counter
+    
     ; chip8 pc = nnn
     pop hl
     ld hl, wEmuRam
-    add hl, de
+    add hl, bc
     push hl
 
-    jp CPULoop
+    push de ; push back emu loop counter
+
+    jp EmuStep
 
 Op2:
     ld b, b ; TODO
-    jp CPULoop
+    jp EmuStep
 
 Op3:
     ld b, b ; TODO
-    jp CPULoop
+    jp EmuStep
 
 Op4:
     ld b, b ; TODO
-    jp CPULoop
+    jp EmuStep
 
 Op5:
     ld b, b ; TODO
-    jp CPULoop
+    jp EmuStep
 
 ; Load normal register with immediate value
-Op6:
+LoadVRegImmediate:
     ; x in de
     ld a, b
     and $0F
@@ -160,24 +200,24 @@ Op6:
 
     ; nn is already in c
 
-    ; wEmuRegs[x] = nn
-    ld hl, wEmuRegs
+    ; wEmuVRegs[x] = nn
+    ld hl, wEmuVRegs
     add hl, de
     ld [hl], c
 
-    jp CPULoop
+    jp EmuStep
 
 Op7:
     ld b, b ; TODO
-    jp CPULoop
+    jp EmuStep
 
 Op8:
     ld b, b ; TODO
-    jp CPULoop
+    jp EmuStep
 
 Op9:
     ld b, b ; TODO
-    jp CPULoop
+    jp EmuStep
 
 ; Load index register with immediate value
 OpLoadIndexRegImmediate:
@@ -188,53 +228,42 @@ OpLoadIndexRegImmediate:
     ld e, c
 
     ; I = nnn
-    ld hl, wEmuI
+    ld hl, wEmuIReg
     ld a, d
     ld [hli], a
     ld [hl], e
 
-    jp CPULoop
+    jp EmuStep
 
 OpB:
     ld b, b ; TODO
-    jp CPULoop
+    jp EmuStep
 
 OpC:
     ld b, b ; TODO
-    jp CPULoop
+    jp EmuStep
 
 ; Draw sprite to screen
 OpDrawSprite:
     ld b, b ; TODO
-    jp CPULoop
+    jp EmuStep
 
 OpE:
     ld b, b ; TODO
-    jp CPULoop
+    jp EmuStep
 
 OpF:
     ld b, b ; TODO
-    jp CPULoop
+    jp EmuStep
 
 ; Clear the screen
 OpClearScreen:
-    ld c, EMU_TILEMAP_HEIGHT
-
-    ld hl, _SCRN0 + EMU_TILEMAP_START
-.loop
+    ld hl, wEmuVram
     ld b, 0 ; 0 is full black tile
-    ld de, EMU_TILEMAP_WIDTH
+    ld de, EMU_VRAM_SIZE
     call Memset
-
-    ld de, EMU_TILEMAP_STRIDE - EMU_TILEMAP_WIDTH
-    add hl, de
-
-    dec c
-    cp c
-    jr nz, .loop
-
-    ret
+    jp EmuStep
 
 OpSubroutineReturn:
     ld hl, sp+1
-    ret
+    jp EmuStep

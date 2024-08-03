@@ -7,7 +7,7 @@ SECTION "Utils", ROM0
 WaitVBLANK::
     ld a, [rLY]
     cp SCRN_Y
-    jr nc, .returnNow
+    jr nc, .return
 
     ld hl, rIE
     set IEB_VBLANK, [hl]
@@ -16,8 +16,7 @@ WaitVBLANK::
 
     ; ld hl, rIE not needed because VBLANK int does nothing
     set IEB_VBLANK, [hl]
-    reti
-.returnNow:
+.return:
     ret
 
 ; Wait for VBLANK then disable LCD

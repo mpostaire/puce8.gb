@@ -14,7 +14,7 @@ wNewKeys:: db
 
 SECTION "VBLANK interrupt", ROM0[INT_HANDLER_VBLANK]
 
-    ret
+    reti
 
 
 SECTION "EntryPoint", ROM0
