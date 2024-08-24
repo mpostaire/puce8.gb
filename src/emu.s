@@ -299,6 +299,7 @@ OpDrawSprite:
     ld sp, hl
 
     push de
+    ld b, 0 ; b == 0 --> draw sprite cmd
     push bc
 
     ld [wDrawCmdsHead], sp
@@ -320,27 +321,41 @@ OpF:
 
 ; Clear the screen
 OpClearScreen:
-    ; TODO don't wait vblank, push clearscreen to drawcmds, then the fast clear loop is applied in vblank
-    ; and don't push clearscreen to drawcmds if last cmd is already a clearscreen
-    call WaitVBLANK
+    ; push draw command into queue
+    ld [wTmpSP], sp
+    ld a, [wDrawCmdsHead]
+    ld l, a
+    ld a, [wDrawCmdsHead + 1]
+    ld h, a
+    ld sp, hl
 
-    ld hl, _SCRN0 + EMU_TILEMAP_START
+    ld b, 1 ; b == 1 --> clear screen cmd
+    push bc
 
-    ld de, 16 ; offset between 2 screen lines (in tiles)
-    ld b, 8 ; height of screen (in tiles)
-    ld a, 15 ; black
-
-.loop:
-    REPT 16
-        ld [hl+], a
-    ENDR
-
-    add hl, de
-
-    dec b
-    jr nz, .loop
+    ld [wDrawCmdsHead], sp
+    ld a, [wTmpSP]
+    ld l, a
+    ld a, [wTmpSP + 1]
+    ld h, a
+    ld sp, hl
 
     jp EmuStep
+
+    ; ld hl, _SCRN0 + EMU_TILEMAP_START
+
+;     ld de, 16 ; offset between 2 screen lines (in tiles)
+;     ld b, 8 ; height of screen (in tiles)
+;     ld a, 15 ; black
+
+; .loop:
+;     REPT 16
+;         ld [hl+], a
+;     ENDR
+
+;     add hl, de
+
+;     dec b
+;     jr nz, .loop
 
 OpSubroutineReturn:
     ld b, b
