@@ -41,3 +41,16 @@ LoadTileMap::
     ld de, TileMap.end - TileMap
     call Memcpy
     ret
+
+;; Multiplies hl with de
+Multiply::
+    ld a, d
+    or a, e
+    jr z, .return
+
+    add hl, hl
+    dec de
+    jr Multiply
+
+.return:
+    ret

@@ -20,11 +20,11 @@ SECTION "Emu vars", WRAM0
 wEmuVRegs: ds EMU_REGS_SIZE
 wEmuIReg: dw
 
+wDrawCmds: ds EMU_INSTRS_PER_FRAME * 2
+.end:
+wDrawCmdsHead: dw
 
-SECTION "Emu VRAM", WRAM0
-
-wEmuVram: ds EMU_VRAM_SIZE
-
+wTmpSP: dw
 
 SECTION "Emu RAM", WRAMX
 
@@ -61,28 +61,33 @@ GetInputAndRenderFrame:
     call WaitVBLANK
     call UpdateKeys
 
-
 ;     ; copy emu vram into tilemap vram
-;     ; ld hl, _SCRN0
-;     ; ld bc, wEmuVram
-;     ; ld de, EMU_VRAM_SIZE
-;     ; call Memcpy
-;     ld c, EMU_TILEMAP_HEIGHT
-
 ;     ld hl, _SCRN0 + EMU_TILEMAP_START
-; .loop
-;     ld bc, wEmuVram
-;     ld de, EMU_TILEMAP_WIDTH
+
+; ; TODO this loop takes too much time --> goes beyond VBLANK and VRAM becomes inaccessible
+; .loop:
+;     ld c, EMU_TILEMAP_HEIGHT
+;     push bc
+;     push hl
+
+;     ld bc, wEmuVRAM
+;     ld de, 16
 ;     call Memcpy
 
-;     ld de, EMU_TILEMAP_STRIDE - EMU_TILEMAP_WIDTH
+;     ld de, EMU_VRAM_STRIDE
+;     pop hl
 ;     add hl, de
 
+;     pop bc
 ;     dec c
-;     cp c
 ;     jr nz, .loop
 
 EmuLoop:
+    ld a, LOW(wDrawCmds.end)
+    ld [wDrawCmdsHead], a
+    ld a, HIGH(wDrawCmds.end)
+    ld [wDrawCmdsHead + 1], a
+
     ld d, EMU_INSTRS_PER_FRAME
     push de ; save loop counter in stack
     ; TODO maybe storing loop counter in stack is not a good idea, the stack should be reserved for calls and chip8 pc
@@ -175,19 +180,19 @@ OpJump:
     jp EmuStep
 
 Op2:
-    ld b, b ; TODO
+    ld b, b
     jp EmuStep
 
 Op3:
-    ld b, b ; TODO
+    ld b, b
     jp EmuStep
 
 Op4:
-    ld b, b ; TODO
+    ld b, b
     jp EmuStep
 
 Op5:
-    ld b, b ; TODO
+    ld b, b
     jp EmuStep
 
 ; Load normal register with immediate value
@@ -208,15 +213,15 @@ LoadVRegImmediate:
     jp EmuStep
 
 Op7:
-    ld b, b ; TODO
+    ld b, b
     jp EmuStep
 
 Op8:
-    ld b, b ; TODO
+    ld b, b
     jp EmuStep
 
 Op9:
-    ld b, b ; TODO
+    ld b, b
     jp EmuStep
 
 ; Load index register with immediate value
@@ -236,34 +241,107 @@ OpLoadIndexRegImmediate:
     jp EmuStep
 
 OpB:
-    ld b, b ; TODO
+    ld b, b
     jp EmuStep
 
 OpC:
-    ld b, b ; TODO
+    ld b, b
     jp EmuStep
 
 ; Draw sprite to screen
 OpDrawSprite:
-    ld b, b ; TODO
+    ld d, 0
+
+    ; x
+    ld a, b
+    and $0F
+    ld e, a
+    ld hl, wEmuVRegs
+    add hl, de
+    ld a, [hl]
+    and 63 ; modulo 64
+    ld b, a
+
+    ; y
+    ld a, c
+    and $F0
+    swap a
+    ld e, a
+    ld hl, wEmuVRegs
+    add hl, de
+    ld a, [hl]
+    and 31 ; modulo 32
+
+    ; start vram addr in de
+    ld d, 0
+    ld e, a
+    ld a, b
+    ld h, 0
+    ld l, a
+    call Multiply
+    ld de, _VRAM8800
+    add hl, de
+
+    ld d, h
+    ld e, l
+
+    ; n in c
+    ld a, c
+    and $0F
+    ld c, a
+
+    ; push draw command into queue
+    ld [wTmpSP], sp
+    ld a, [wDrawCmdsHead]
+    ld l, a
+    ld a, [wDrawCmdsHead + 1]
+    ld h, a
+    ld sp, hl
+
+    push de
+    push bc
+
+    ld [wDrawCmdsHead], sp
+    ld a, [wTmpSP]
+    ld l, a
+    ld a, [wTmpSP + 1]
+    ld h, a
+    ld sp, hl
+
     jp EmuStep
 
 OpE:
-    ld b, b ; TODO
+    ld b, b
     jp EmuStep
 
 OpF:
-    ld b, b ; TODO
+    ld b, b
     jp EmuStep
 
 ; Clear the screen
 OpClearScreen:
-    ld hl, wEmuVram
-    ld b, 0 ; 0 is full black tile
-    ld de, EMU_VRAM_SIZE
-    call Memset
+    ; TODO don't wait vblank, push clearscreen to drawcmds, then the fast clear loop is applied in vblank
+    ; and don't push clearscreen to drawcmds if last cmd is already a clearscreen
+    call WaitVBLANK
+
+    ld hl, _SCRN0 + EMU_TILEMAP_START
+
+    ld de, 16 ; offset between 2 screen lines (in tiles)
+    ld b, 8 ; height of screen (in tiles)
+    ld a, 15 ; black
+
+.loop:
+    REPT 16
+        ld [hl+], a
+    ENDR
+
+    add hl, de
+
+    dec b
+    jr nz, .loop
+
     jp EmuStep
 
 OpSubroutineReturn:
-    ld hl, sp+1
+    ld b, b
     jp EmuStep
