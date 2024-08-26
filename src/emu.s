@@ -12,17 +12,19 @@ DEF EMU_INSTRS_PER_FRAME EQU 11
 
 DEF EMU_REGS_SIZE EQU 16
 DEF EMU_RAM_SIZE EQU 4096
-DEF EMU_VRAM_SIZE EQU 2048
+DEF VRAM_SIZE EQU $800
+DEF EMU_VRAM_STRIDE EQU 32 ; TODO
 
 
 SECTION "Emu vars", WRAM0
 
-wEmuVRegs: ds EMU_REGS_SIZE
-wEmuIReg: dw
+wEmuRegs:
+.V: ds EMU_REGS_SIZE
+.I: dw
 
 wDrawCmds: ds EMU_INSTRS_PER_FRAME * 2
 .end:
-wDrawCmdsHead: dw
+.tail: dw
 
 wTmpSP: dw
 
@@ -55,38 +57,85 @@ EmuReset::
     ; set chip8 pc in hl register
     ld hl, wEmuRam + $0200
     push hl
+
+    call WaitLY0
+
     jp EmuLoop
 
 GetInputAndRenderFrame:
     call WaitVBLANK
     call UpdateKeys
 
-;     ; copy emu vram into tilemap vram
-;     ld hl, _SCRN0 + EMU_TILEMAP_START
+    ; apply draw cmds queue
 
-; ; TODO this loop takes too much time --> goes beyond VBLANK and VRAM becomes inaccessible
-; .loop:
-;     ld c, EMU_TILEMAP_HEIGHT
-;     push bc
-;     push hl
+    ld [wTmpSP], sp
+    ld hl, wDrawCmds.end
 
-;     ld bc, wEmuVRAM
-;     ld de, 16
-;     call Memcpy
+.start:
+    REPT 4
+        dec l
+    ENDR
 
-;     ld de, EMU_VRAM_STRIDE
-;     pop hl
-;     add hl, de
+    ld a, [wDrawCmds.tail]
+    ld b, a
+    ld a, l
+    cp b
 
-;     pop bc
-;     dec c
-;     jr nz, .loop
+    jr c, .end ; while [wDrawCmds.tail] >= l
+
+    ld sp, hl
+
+    pop bc
+    
+    xor a
+    cp b
+    jr nz, .clearScreen
+
+.renderSprite: ; TODO
+    pop de
+
+    ; n in c
+    ; vram start addr in de
+
+    ld b, b
+
+    jr .start
+
+.clearScreen:
+    push hl
+
+    ld hl, _SCRN0 + EMU_TILEMAP_START
+
+    ld de, 16 ; offset between 2 screen lines (in tiles)
+    ld b, 8 ; height of screen (in tiles)
+    ld a, 15 ; black
+
+.loop:
+    REPT 16
+        ld [hli], a
+    ENDR
+
+    add hl, de
+
+    dec b
+    jr nz, .loop
+
+    pop hl
+    jr .start
+
+.end
+    ld [wDrawCmds.end], sp
+    ld a, [wTmpSP]
+    ld l, a
+    ld a, [wTmpSP + 1]
+    ld h, a
+    ld sp, hl
 
 EmuLoop:
-    ld a, LOW(wDrawCmds.end)
-    ld [wDrawCmdsHead], a
-    ld a, HIGH(wDrawCmds.end)
-    ld [wDrawCmdsHead + 1], a
+    ld a, low(wDrawCmds.end)
+    ld [wDrawCmds.tail], a
+    ld a, high(wDrawCmds.end)
+    ld [wDrawCmds.tail + 1], a
 
     ld d, EMU_INSTRS_PER_FRAME
     push de ; save loop counter in stack
@@ -205,8 +254,8 @@ LoadVRegImmediate:
 
     ; nn is already in c
 
-    ; wEmuVRegs[x] = nn
-    ld hl, wEmuVRegs
+    ; wEmuRegs.V[x] = nn
+    ld hl, wEmuRegs.V
     add hl, de
     ld [hl], c
 
@@ -233,7 +282,7 @@ OpLoadIndexRegImmediate:
     ld e, c
 
     ; I = nnn
-    ld hl, wEmuIReg
+    ld hl, wEmuRegs.I
     ld a, d
     ld [hli], a
     ld [hl], e
@@ -256,7 +305,7 @@ OpDrawSprite:
     ld a, b
     and $0F
     ld e, a
-    ld hl, wEmuVRegs
+    ld hl, wEmuRegs.V
     add hl, de
     ld a, [hl]
     and 63 ; modulo 64
@@ -267,7 +316,7 @@ OpDrawSprite:
     and $F0
     swap a
     ld e, a
-    ld hl, wEmuVRegs
+    ld hl, wEmuRegs.V
     add hl, de
     ld a, [hl]
     and 31 ; modulo 32
@@ -292,9 +341,9 @@ OpDrawSprite:
 
     ; push draw command into queue
     ld [wTmpSP], sp
-    ld a, [wDrawCmdsHead]
+    ld a, [wDrawCmds.tail]
     ld l, a
-    ld a, [wDrawCmdsHead + 1]
+    ld a, [wDrawCmds.tail + 1]
     ld h, a
     ld sp, hl
 
@@ -302,7 +351,7 @@ OpDrawSprite:
     ld b, 0 ; b == 0 --> draw sprite cmd
     push bc
 
-    ld [wDrawCmdsHead], sp
+    ld [wDrawCmds.tail], sp
     ld a, [wTmpSP]
     ld l, a
     ld a, [wTmpSP + 1]
@@ -323,16 +372,17 @@ OpF:
 OpClearScreen:
     ; push draw command into queue
     ld [wTmpSP], sp
-    ld a, [wDrawCmdsHead]
+    ld a, [wDrawCmds.tail]
     ld l, a
-    ld a, [wDrawCmdsHead + 1]
+    ld a, [wDrawCmds.tail + 1]
     ld h, a
     ld sp, hl
 
+    push de
     ld b, 1 ; b == 1 --> clear screen cmd
     push bc
 
-    ld [wDrawCmdsHead], sp
+    ld [wDrawCmds.tail], sp
     ld a, [wTmpSP]
     ld l, a
     ld a, [wTmpSP + 1]
@@ -340,22 +390,6 @@ OpClearScreen:
     ld sp, hl
 
     jp EmuStep
-
-    ; ld hl, _SCRN0 + EMU_TILEMAP_START
-
-;     ld de, 16 ; offset between 2 screen lines (in tiles)
-;     ld b, 8 ; height of screen (in tiles)
-;     ld a, 15 ; black
-
-; .loop:
-;     REPT 16
-;         ld [hl+], a
-;     ENDR
-
-;     add hl, de
-
-;     dec b
-;     jr nz, .loop
 
 OpSubroutineReturn:
     ld b, b

@@ -19,6 +19,16 @@ WaitVBLANK::
 .return:
     ret
 
+; Halts until VBLANK, then busy wait until LY == 0
+WaitLY0::
+    call WaitVBLANK
+
+.loop:
+    ld a, [rLY]
+    cp a, 0
+    jr nz, .loop
+    ret
+
 ; Wait for VBLANK then disable LCD
 DisableLCD::
     call WaitVBLANK
