@@ -177,11 +177,12 @@ GetInputAndRenderFrame:
     jr .start
 
 .end
-    ld [wDrawCmds.end], sp
-    ld a, [wTmpSP]
-    ld l, a
-    ld a, [wTmpSP + 1]
-    ld h, a
+    ; TODO this is wrong --> should set sp to wDrawCmds.tail
+    ; ld [wDrawCmds.end], sp
+    ; ld a, [wTmpSP]
+    ; ld l, a
+    ; ld a, [wTmpSP + 1]
+    ; ld h, a
     ld sp, hl
 
 EmuLoop:
