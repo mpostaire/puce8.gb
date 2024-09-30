@@ -22,9 +22,9 @@ wEmuRegs:
 .V: ds EMU_REGS_SIZE
 .I: dw
 
-wDrawCmds: ds EMU_INSTRS_PER_FRAME * 5
+wDrawCmds: ds EMU_INSTRS_PER_FRAME * 6
 .end:
-.tail: dw
+.head: dw
 
 wTmpDraw:
 .x: db
@@ -70,26 +70,22 @@ GetInputAndRenderFrame:
 
     ; apply draw cmds queue
 
-    ; TODO this is wrong --> should set sp to wDrawCmds.tail
-    ld hl, wDrawCmds.end
-
-    ; ld a, [wDrawCmds.end]
-    ; ld l, a
-    ; ld a, [wDrawCmds.end + 1]
-    ; ld h, a
+    ld a, low(wDrawCmds)
+    ld l, a
+    ld a, high(wDrawCmds)
+    ld h, a
 
 ; [clear, draw1, draw1, draw1, draw2, draw2, draw2]
 ; [.end, .end+2, .end+4, .end+6, .end+8, .end+10, .end+12]
 
 ; TODO draw cmds:
-; if clear screen --> 1 word where 1st byte is == 1
+; if clear screen --> 1 byte == 1
 ; if draw sprite --> 3 words where 1st is n (byte 0 == 0, byte 1 == n), 2nd is tilemap addr, 3rd is vram addr
 .start:
-    ; TODO dec 1 word if clear screen cmd, 3 words if draw sprite cmd
-    dec l
-    dec l
+    ; TODO inc 1 word if clear screen cmd, 3 words if draw sprite cmd
 
-    jr c, .end ; while [wDrawCmds.tail] >= l
+    ; TODO this jump condition may be wrong now
+    jr c, .end ; while [wDrawCmds.head] >= l
 
     ld sp, hl
 
@@ -177,7 +173,7 @@ GetInputAndRenderFrame:
     jr .start
 
 .end
-    ; TODO this is wrong --> should set sp to wDrawCmds.tail
+    ; TODO this is wrong --> should set sp to wDrawCmds.head
     ; ld [wDrawCmds.end], sp
     ; ld a, [wTmpSP]
     ; ld l, a
@@ -186,10 +182,10 @@ GetInputAndRenderFrame:
     ld sp, hl
 
 EmuLoop:
-    ld a, low(wDrawCmds.end - 1)
-    ld [wDrawCmds.tail], a
-    ld a, high(wDrawCmds.end - 1)
-    ld [wDrawCmds.tail + 1], a
+    ld a, low(wDrawCmds)
+    ld [wDrawCmds.head], a
+    ld a, high(wDrawCmds)
+    ld [wDrawCmds.head + 1], a
 
     ld d, EMU_INSTRS_PER_FRAME
     push de ; save loop counter in stack
@@ -380,21 +376,22 @@ OpDrawSprite:
     ; ENDR
     ld [wTmpDraw.y], a
 
-    ld a, [wDrawCmds.tail]
+    ld a, [wDrawCmds.head]
     ld l, a
-    ld a, [wDrawCmds.tail + 1]
+    ld a, [wDrawCmds.head + 1]
     ld h, a
 
+    xor a ; a == 0 --> draw sprite command
+    ld [hli], a
     ; n
     ld a, c
     and $0F
-
-    ld [hld], a
+    ld [hli], a
 
     ld a, l
-    ld [wDrawCmds.tail], a
+    ld [wDrawCmds.head], a
     ld a, h
-    ld [wDrawCmds.tail + 1], a
+    ld [wDrawCmds.head + 1], a
 
     ; compute tilemap addr
 
@@ -415,22 +412,20 @@ OpDrawSprite:
     ld d, h
     ld e, l
 
-    ld a, [wDrawCmds.tail]
+    ld a, [wDrawCmds.head]
     ld l, a
-    ld a, [wDrawCmds.tail + 1]
+    ld a, [wDrawCmds.head + 1]
     ld h, a
 
-    ; push hl
-
-    ld a, e
-    ld [hld], a
     ld a, d
-    ld [hld], a
+    ld [hli], a
+    ld a, e
+    ld [hli], a
 
     ld a, l
-    ld [wDrawCmds.tail], a
+    ld [wDrawCmds.head], a
     ld a, h
-    ld [wDrawCmds.tail + 1], a
+    ld [wDrawCmds.head + 1], a
 
     ; compute start vram addr
     ld h, 0
@@ -453,22 +448,20 @@ OpDrawSprite:
     ld d, h
     ld e, l
 
-    ld a, [wDrawCmds.tail]
+    ld a, [wDrawCmds.head]
     ld l, a
-    ld a, [wDrawCmds.tail + 1]
+    ld a, [wDrawCmds.head + 1]
     ld h, a
 
-    ; push hl
-
-    ld a, e
-    ld [hld], a
     ld a, d
-    ld [hld], a
+    ld [hli], a
+    ld a, e
+    ld [hli], a
 
     ld a, l
-    ld [wDrawCmds.tail], a
+    ld [wDrawCmds.head], a
     ld a, h
-    ld [wDrawCmds.tail + 1], a
+    ld [wDrawCmds.head + 1], a
 
     jp EmuStep
 
@@ -482,18 +475,19 @@ OpF:
 
 ; Clear the screen
 OpClearScreen:
-    ld a, [wDrawCmds.tail]
+    ld a, [wDrawCmds.head]
     ld l, a
-    ld a, [wDrawCmds.tail + 1]
+    ld a, [wDrawCmds.head + 1]
     ld h, a
 
     ld a, 1 ; a == 1 --> clear screen cmd
+    ld [hli], a
+    ld [hli], a
 
-    ld [hld], a
     ld a, l
-    ld [wDrawCmds.tail], a
+    ld [wDrawCmds.head], a
     ld a, h
-    ld [wDrawCmds.tail + 1], a
+    ld [wDrawCmds.head + 1], a
 
     jp EmuStep
 
