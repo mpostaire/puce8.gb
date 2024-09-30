@@ -25,7 +25,7 @@ WaitLY0::
 
 .loop:
     ld a, [rLY]
-    cp a, 0
+    cp 0
     jr nz, .loop
     ret
 
@@ -52,15 +52,63 @@ LoadTileMap::
     call Memcpy
     ret
 
-;; Multiplies hl with de
-Multiply::
-    ld a, d
-    or a, e
-    jr z, .return
+; ; hl = l * b
+; ; TODO optimize by adding largest number and iterating on smallest
+; Multiply::
+;     ld a, h
+;     or l
+;     jr z, .return0
 
-    add hl, hl
-    dec de
-    jr Multiply
+;     xor a
+;     cp b
+;     jr z, .return0
 
-.return:
+;     ld d, l
+;     ld l, 0
+
+; .loop:
+;     ld a, l
+;     add d
+;     ld l, a
+;     ld a, 0 ; xor a impossible as it resets C flag
+;     adc a
+;     ld h, a
+
+;     dec b
+;     jr nz, .loop
+
+; .return:
+;     ret
+; .return0:
+;     xor a
+;     ld h, a
+;     ld l, a
+;     ret
+
+; fast multiply hl by a power of 2 (16 bit shift left)
+; hl <<= b
+MultiplyPower2::
+    sla l
+    ld a, 0
+    adc a
+    sla h
+    bit 0, a
+    jr z, .returnCondition
+    set 0, h
+
+.returnCondition:
+    dec b
+    jr nz, MultiplyPower2
     ret
+
+; ; multiply hl by 2 (16 bit shift left)
+; ShiftLeft16::
+;     sla l
+;     ld a, 0
+;     adc a
+;     sla h
+;     bit 0, a
+;     jr z, .return
+;     set 0, h
+; .return:
+;     ret

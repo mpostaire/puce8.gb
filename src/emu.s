@@ -22,11 +22,13 @@ wEmuRegs:
 .V: ds EMU_REGS_SIZE
 .I: dw
 
-wDrawCmds: ds EMU_INSTRS_PER_FRAME * 2
+wDrawCmds: ds EMU_INSTRS_PER_FRAME * 5
 .end:
 .tail: dw
 
-wTmpSP: dw
+wTmpDraw:
+.x: db
+.y: db
 
 SECTION "Emu RAM", WRAMX
 
@@ -68,36 +70,87 @@ GetInputAndRenderFrame:
 
     ; apply draw cmds queue
 
-    ld [wTmpSP], sp
+    ; TODO this is wrong --> should set sp to wDrawCmds.tail
     ld hl, wDrawCmds.end
 
-.start:
-    REPT 4
-        dec l
-    ENDR
+    ; ld a, [wDrawCmds.end]
+    ; ld l, a
+    ; ld a, [wDrawCmds.end + 1]
+    ; ld h, a
 
-    ld a, [wDrawCmds.tail]
-    ld b, a
-    ld a, l
-    cp b
+; [clear, draw1, draw1, draw1, draw2, draw2, draw2]
+; [.end, .end+2, .end+4, .end+6, .end+8, .end+10, .end+12]
+
+; TODO draw cmds:
+; if clear screen --> 1 word where 1st byte is == 1
+; if draw sprite --> 3 words where 1st is n (byte 0 == 0, byte 1 == n), 2nd is tilemap addr, 3rd is vram addr
+.start:
+    ; TODO dec 1 word if clear screen cmd, 3 words if draw sprite cmd
+    dec l
+    dec l
 
     jr c, .end ; while [wDrawCmds.tail] >= l
 
     ld sp, hl
 
     pop bc
-    
+
     xor a
     cp b
     jr nz, .clearScreen
 
 .renderSprite: ; TODO
-    pop de
+    dec l
+    dec l
+    dec l
+    dec l
 
-    ; n in c
-    ; vram start addr in de
+    ld sp, hl
 
-    ld b, b
+    ; n is in c
+    pop de ; vram start addr is in de
+
+        push hl
+
+    ld h, d
+    ld l, e
+    ld a, $FF
+
+    ; actually draw pixels
+    REPT 5
+        ld [hli], a
+        inc l
+        inc l
+    ENDR
+    ld [hli], a
+
+        pop hl
+
+.applyTilemap:
+    pop de ; tilemap addr is in de
+
+        push hl
+
+    ld h, d
+    ld l, e
+    ld a, $FF
+
+    ; ld l, e
+    ; REPT 4
+    ;     sra l
+    ; ENDR
+
+    ; ld b, l
+    ; ld a, l
+    ; ld hl, _SCRN0 + EMU_TILEMAP_START
+    ; add l
+    ; ld l, a
+
+    ; ld a, b
+    ; add 128
+    ld [hl], a
+
+        pop hl
 
     jr .start
 
@@ -132,9 +185,9 @@ GetInputAndRenderFrame:
     ld sp, hl
 
 EmuLoop:
-    ld a, low(wDrawCmds.end)
+    ld a, low(wDrawCmds.end - 1)
     ld [wDrawCmds.tail], a
-    ld a, high(wDrawCmds.end)
+    ld a, high(wDrawCmds.end - 1)
     ld [wDrawCmds.tail + 1], a
 
     ld d, EMU_INSTRS_PER_FRAME
@@ -306,10 +359,11 @@ OpDrawSprite:
     and $0F
     ld e, a
     ld hl, wEmuRegs.V
-    add hl, de
+    add hl, de ; TODO can be optimized to add l, e IF we are guaranteed that wEmuRegs.V max is < 255 - 16
     ld a, [hl]
     and 63 ; modulo 64
-    ld b, a
+    sla a ; x *= 2 (emu screen size is 2x chip8 screen size)
+    ld [wTmpDraw.x], a
 
     ; y
     ld a, c
@@ -317,46 +371,103 @@ OpDrawSprite:
     swap a
     ld e, a
     ld hl, wEmuRegs.V
-    add hl, de
+    add hl, de ; TODO can be optimized to add l, e IF we are guaranteed that wEmuRegs.V max is < 255 - 16
     ld a, [hl]
     and 31 ; modulo 32
+    ; REPT 3 ; TODO divide by 8 because each tile contains 8 pixels
+    ;     sra a
+    ; ENDR
+    ld [wTmpDraw.y], a
 
-    ; start vram addr in de
-    ld d, 0
-    ld e, a
-    ld a, b
-    ld h, 0
-    ld l, a
-    call Multiply
-    ld de, _VRAM8800
-    add hl, de
-
-    ld d, h
-    ld e, l
-
-    ; n in c
-    ld a, c
-    and $0F
-    ld c, a
-
-    ; push draw command into queue
-    ld [wTmpSP], sp
     ld a, [wDrawCmds.tail]
     ld l, a
     ld a, [wDrawCmds.tail + 1]
     ld h, a
-    ld sp, hl
 
-    push de
-    ld b, 0 ; b == 0 --> draw sprite cmd
-    push bc
+    ; n
+    ld a, c
+    and $0F
 
-    ld [wDrawCmds.tail], sp
-    ld a, [wTmpSP]
+    ld [hld], a
+
+    ld a, l
+    ld [wDrawCmds.tail], a
+    ld a, h
+    ld [wDrawCmds.tail + 1], a
+
+    ; compute tilemap addr
+
+    ld h, 0
+    ld a, [wTmpDraw.y]
     ld l, a
-    ld a, [wTmpSP + 1]
+    ld b, 2 ; stride in bit shifts (1 << 5 == 32) --> 1 << 2 == 4 we do * 4 because we divide by 8, then multiply by 32
+
+    ; y * stride
+    call MultiplyPower2
+
+    ld d, 0
+    ld a, [wTmpDraw.x]
+    ld e, a
+
+    ld hl, _SCRN0 + EMU_TILEMAP_START
+    add hl, de ; + x
+    ld d, h
+    ld e, l
+
+    ld a, [wDrawCmds.tail]
+    ld l, a
+    ld a, [wDrawCmds.tail + 1]
     ld h, a
-    ld sp, hl
+
+    ; push hl
+
+    ld a, e
+    ld [hld], a
+    ld a, d
+    ld [hld], a
+
+    ld a, l
+    ld [wDrawCmds.tail], a
+    ld a, h
+    ld [wDrawCmds.tail + 1], a
+
+    ; compute start vram addr
+    ld h, 0
+    ld a, [wTmpDraw.y]
+    ld l, a
+    ld b, 5 ; stride in bit shifts (1 << 8 == 256) --> 1 << 5 == 32 we do * 32 because we divide by 8, then multiply by 256
+
+    ; y * stride
+    call MultiplyPower2
+
+    ; loading x in de is unecessary here because it was done above
+    ; ld d, 0
+    ; ld a, [wTmpDraw.x]
+    ; ld e, a
+
+    ; TODO multiply side effects in d (and a) --> may break everything below
+
+    ld de, _VRAM8800
+    add hl, de
+    ld d, h
+    ld e, l
+
+    ld a, [wDrawCmds.tail]
+    ld l, a
+    ld a, [wDrawCmds.tail + 1]
+    ld h, a
+
+    ; push hl
+
+    ld a, e
+    ld [hld], a
+    ld a, d
+    ld [hld], a
+
+    ld a, l
+    ld [wDrawCmds.tail], a
+    ld a, h
+    ld [wDrawCmds.tail + 1], a
 
     jp EmuStep
 
@@ -370,24 +481,18 @@ OpF:
 
 ; Clear the screen
 OpClearScreen:
-    ; push draw command into queue
-    ld [wTmpSP], sp
     ld a, [wDrawCmds.tail]
     ld l, a
     ld a, [wDrawCmds.tail + 1]
     ld h, a
-    ld sp, hl
 
-    push de
-    ld b, 1 ; b == 1 --> clear screen cmd
-    push bc
+    ld a, 1 ; a == 1 --> clear screen cmd
 
-    ld [wDrawCmds.tail], sp
-    ld a, [wTmpSP]
-    ld l, a
-    ld a, [wTmpSP + 1]
-    ld h, a
-    ld sp, hl
+    ld [hld], a
+    ld a, l
+    ld [wDrawCmds.tail], a
+    ld a, h
+    ld [wDrawCmds.tail + 1], a
 
     jp EmuStep
 
