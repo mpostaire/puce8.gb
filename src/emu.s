@@ -75,6 +75,8 @@ GetInputAndRenderFrame:
     ld a, high(wDrawCmds)
     ld h, a
 
+    ld sp, hl
+
 ; [clear, draw1, draw1, draw1, draw2, draw2, draw2]
 ; [.end, .end+2, .end+4, .end+6, .end+8, .end+10, .end+12]
 
@@ -87,12 +89,10 @@ GetInputAndRenderFrame:
     ; TODO this jump condition may be wrong now
     jr c, .end ; while [wDrawCmds.head] >= l
 
-    ld sp, hl
-
     pop bc
 
     xor a
-    cp b
+    cp c
     jr nz, .clearScreen
 
 .renderSprite: ; TODO
