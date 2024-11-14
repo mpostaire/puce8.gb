@@ -1,5 +1,5 @@
 SDIR:=src
-ODIR:=out
+ODIR:=build
 IDIR:=inc
 BIN:=puce8.gb
 

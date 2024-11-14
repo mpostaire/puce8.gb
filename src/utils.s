@@ -87,18 +87,18 @@ LoadTileMap::
 
 ; fast multiply hl by a power of 2 (16 bit shift left)
 ; hl <<= b
-MultiplyPower2::
+Mul2::
     sla l
     ld a, 0
     adc a
     sla h
     bit 0, a
-    jr z, .returnCondition
+    jr z, .return
     set 0, h
 
-.returnCondition:
+.return:
     dec b
-    jr nz, MultiplyPower2
+    jr nz, Mul2
     ret
 
 ; ; multiply hl by 2 (16 bit shift left)
