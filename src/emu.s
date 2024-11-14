@@ -29,6 +29,8 @@ wTmpDraw:
 .x: db
 .y: db
 
+wTmpSP: dw
+
 SECTION "Emu RAM", WRAMX
 
 wEmuRam: ds EMU_RAM_SIZE
@@ -74,6 +76,7 @@ GetInputAndRenderFrame:
     ld a, high(wDrawCmds)
     ld h, a
 
+    ld [wTmpSP], sp
     ld sp, hl
 
 ; [clear, draw1, draw1, draw1, draw2, draw2, draw2]
@@ -168,12 +171,10 @@ GetInputAndRenderFrame:
     jr .start
 
 .end
-    ; TODO this is wrong --> should set sp to wDrawCmds.head
-    ; ld [wDrawCmds.end], sp
-    ; ld a, [wTmpSP]
-    ; ld l, a
-    ; ld a, [wTmpSP + 1]
-    ; ld h, a
+    ld a, [wTmpSP]
+    ld l, a
+    ld a, [wTmpSP + 1]
+    ld h, a
     ld sp, hl
 
 EmuLoop:
